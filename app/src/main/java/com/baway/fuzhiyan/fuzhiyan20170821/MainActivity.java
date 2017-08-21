@@ -1,9 +1,9 @@
 package com.baway.fuzhiyan.fuzhiyan20170821;
 
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -16,17 +16,22 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 
+import java.io.FileNotFoundException;
+
+//定位，运行工具为模拟器，故定位位置不对
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
     private ImageView imageView;
     private TextView textView;
-    private EditText editText;
-    Matrix matrix;
+    private EditText editText,editText1;
+    private Bitmap bitmap;
+
     //声明AMapLocationClientOption对象
     public AMapLocationClientOption mLocationOption = null;
     public AMapLocationClient mLocationClient;
@@ -39,6 +44,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         textView = (TextView) findViewById(R.id.text_location);
         imageView = (ImageView) findViewById(R.id.image);
         editText = (EditText) findViewById(R.id.edit_span);
+        editText1.setOnClickListener(this);
         imageView.setOnClickListener(this);
         //初始化AMapLocationClientOption对象
         mLocationOption = new AMapLocationClientOption();
@@ -61,6 +67,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     AMapLocationListener mAMapLocationListener = new AMapLocationListener() {
+
         @Override
         public void onLocationChanged(AMapLocation amapLocation) {
 
@@ -95,31 +102,41 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == PHOTO_REQUEST_GALLERY) {
-            // 从相册返回的数据
-            if (data != null) {
-                // 得到图片的全路径
-                Uri uri = data.getData();
-                Bitmap loadedImage = BitmapFactory.decodeFile(uri.getPath());
-                loadedImage = Bitmap.createBitmap(loadedImage, 0, 0, loadedImage.getWidth(), loadedImage.getHeight(), matrix, true);
-                ImageSpan imageSpan = new ImageSpan(getApplicationContext(), loadedImage);
-
-                String tempUrl = "<img src=\"" + uri.getPath() + "\" />";
-                SpannableString spannableString = new SpannableString(tempUrl);
-                spannableString.setSpan(imageSpan, 0, tempUrl.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                // 将选择的图片追加到EditText中光标所在位置
-                int index = editText.getSelectionStart();
-                // 获取光标所在位置
-                Editable edit_text = editText.getEditableText();
-                if (index < 0 || index >= edit_text.length()) {
-                    edit_text.append(spannableString);
-                } else {
-                    edit_text.insert(index, spannableString);
-                }
-
-
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == RESULT_OK && requestCode == PHOTO_REQUEST_GALLERY) {
+            ContentResolver resolver = getContentResolver();
+            // 获得图片的uri
+            Uri originalUri = data.getData();
+            bitmap = null;
+            try {
+                Bitmap originalBitmap = BitmapFactory.decodeStream(resolver
+                        .openInputStream(originalUri));
+                bitmap = originalBitmap;
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+            if (bitmap != null) {
+                insertIntoEditText(getBitmapMime(bitmap, originalUri));
+            } else {
+                Toast.makeText(MainActivity.this, "获取图片失败",
+                        Toast.LENGTH_SHORT).show();
             }
         }
-        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private SpannableString getBitmapMime(Bitmap pic, Uri uri) {
+        String path = uri.getPath();
+        SpannableString ss = new SpannableString(path);
+        ImageSpan span = new ImageSpan(this, pic);
+        ss.setSpan(span, 0, path.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return ss;
+    }
+
+    private void insertIntoEditText(SpannableString ss) {
+        Editable et = editText.getText();// 先获取Edittext中的内容
+        int start = editText.getSelectionStart();
+        et.insert(start, ss);// 设置ss要添加的位置
+        editText.setText(et);// 把et添加到Edittext中
+        editText.setSelection(start + ss.length());// 设置Edittext中光标在最后面显示
     }
 }
